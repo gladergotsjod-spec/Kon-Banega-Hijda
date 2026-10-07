@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kon Banega Hijda</title>
+<style>
+:root{--bg:#080a12;--panel:#111522;--card:#181d2d;--text:#f7f8ff;--muted:#9da5bb;--accent:#7c5cff;--accent2:#ff4f9a;--good:#2ed47a;--danger:#ff5577;--border:#2b3247}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:radial-gradient(circle at top,#17142c 0,#080a12 50%);color:var(--text);min-height:100vh}.wrap{width:min(1050px,94%);margin:auto;padding:30px 0 50px}.brand{text-align:center;margin-bottom:25px}.brand h1{font-size:clamp(32px,6vw,60px);margin:0;font-weight:900;letter-spacing:-2px}.brand p{margin:7px 0;color:var(--muted)}.panel{background:rgba(17,21,34,.94);border:1px solid var(--border);border-radius:22px;padding:22px;margin-bottom:18px;box-shadow:0 18px 60px rgba(0,0,0,.25)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.field{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}.field label{font-size:13px;color:var(--muted)}input{width:100%;background:#0b0e17;border:1px solid var(--border);color:var(--text);border-radius:12px;padding:13px 14px;font-size:16px;outline:none}input:focus{border-color:var(--accent)}button{border:0;border-radius:12px;padding:13px 17px;font-weight:800;font-size:15px;cursor:pointer;background:var(--accent);color:#fff}button.secondary{background:#22283a}button.danger{background:var(--danger)}button:disabled{opacity:.45;cursor:not-allowed}.row{display:flex;gap:10px;flex-wrap:wrap}.hidden{display:none!important}.roomcode{font-size:32px;font-weight:900;letter-spacing:7px;text-align:center;background:#0b0e17;border:1px dashed #454d68;border-radius:14px;padding:14px;margin:12px 0}.status{color:var(--muted);min-height:24px}.players{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.player{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:13px;min-height:90px}.player.you{border-color:var(--accent)}.player.elim{opacity:.45}.pname{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tag{font-size:11px;color:var(--muted);margin-top:6px}.turn{margin-top:15px;padding:15px;border-radius:15px;background:linear-gradient(135deg,#1d1740,#171c2b);border:1px solid #3b3265;text-align:center}.turn strong{font-size:22px}.numbergrid{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;max-height:440px;overflow:auto;padding:5px}.num{background:#20263a;border:1px solid #303850;border-radius:9px;padding:9px 0;text-align:center;font-weight:800;color:#fff}.num.taken{opacity:.22}.num.mine{outline:2px solid var(--accent);background:#312566}.num.eliminated{background:#331d27;color:#ff7e98}.log{max-height:230px;overflow:auto;background:#0b0e17;border-radius:14px;padding:12px}.log div{padding:7px 4px;border-bottom:1px solid #171d2b;color:#c8cede;font-size:14px}.hero{padding:35px;text-align:center;border:1px solid #533b79;background:radial-gradient(circle at center,#261840,#111522 65%)}.hero h2{font-size:48px;margin:5px 0}.small{font-size:13px;color:var(--muted)}@media(max-width:750px){.grid{grid-template-columns:1fr}.players{grid-template-columns:repeat(2,1fr)}.numbergrid{grid-template-columns:repeat(5,1fr)}.wrap{padding-top:18px}.panel{padding:16px}.hero h2{font-size:35px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><h1>👑 KON BANEGA HIJDA</h1><p>Pick secretly. Cancel wisely. Don't be the last one standing.</p></div>
+
+  <section id="lobbyPanel" class="panel">
+    <div class="grid">
+      <div>
+        <h2>Join / Create Game</h2>
+        <div class="field"><label>Your player name</label><input id="name" maxlength="20" placeholder="e.g. Glader"></div>
+        <div class="row"><button id="create">Create Room</button></div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:20px 0">
+        <div class="field"><label>Room code</label><input id="code" maxlength="5" placeholder="ABCDE" style="text-transform:uppercase"></div>
+        <button id="join">Join Room</button>
+        <p id="error" class="status"></p>
+      </div>
+      <div>
+        <h2>How to play</h2>
+        <ol style="color:#c8cede;line-height:1.8">
+          <li>Up to 8 players join the same room.</li>
+          <li>Everyone secretly chooses a unique number from <b>1–100</b>.</li>
+          <li>The server randomly chooses the first turn.</li>
+          <li>On your turn, cancel an opponent's number.</li>
+          <li>If you hit someone's secret number, that player is <b>OUT</b>.</li>
+          <li>If you miss, nobody is eliminated and the turn moves on.</li>
+          <li>The last player remaining is declared <b>HIJDA</b> 😈</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="gamePanel" class="hidden">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center"><div><span class="small">ROOM CODE</span><div id="roomCode" class="roomcode" style="font-size:24px;padding:8px;margin:4px 0">-----</div></div><div id="hostArea"></div></div>
+      <div id="mySecret" class="turn"></div>
+    </div>
+
+    <div class="panel"><h2>Players</h2><div id="players" class="players"></div><div id="turn" class="turn"></div></div>
+
+    <div id="pickPanel" class="panel"><h2>Choose your secret number</h2><p class="small">Only you will see which number you picked. Other players will see that you are ready, not your number.</p><div id="pickGrid" class="numbergrid"></div></div>
+
+    <div id="cancelPanel" class="panel hidden"><h2>Cancel a number</h2><p class="small">Choose any number except your own. The number you click is broadcast as your cancellation attempt.</p><div id="cancelGrid" class="numbergrid"></div></div>
+
+    <div class="panel"><h2>Game Log</h2><div id="log" class="log"></div></div>
+    <div id="finish" class="panel hero hidden"><div class="small">THE LAST PLAYER LEFT</div><h2 id="winner">HIJDA</h2><p>Everyone else got out. Better luck next round 😈</p><div id="resetArea"></div></div>
+  </section>
+</div>
+<script>
+const $=id=>document.getElementById(id);let ws=null,state=null;
+function connect(action){
+  const name=$('name').value.trim(); if(!name)return showError('Enter your player name first.');
+  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  ws.onopen=()=>ws.send(JSON.stringify({type:action, name, code:$('code').value.trim().toUpperCase()}));
+  ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='error')showError(m.error);else if(m.type==='state'){state=m;showError('');render();}};
+  ws.onclose=()=>showError('Connection closed. Refresh the page to reconnect.');
+  ws.onerror=()=>showError('Could not connect to the game server.');
+  clearInterval(window.kbhHeartbeat);
+  window.kbhHeartbeat=setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'heartbeat'}));},20000);
+}
+function showError(t){$('error').textContent=t||'';$('error').style.color=t?'#ff7894':''}
+$('create').onclick=()=>connect('create');$('join').onclick=()=>connect('join');$('code').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+function send(x){if(ws&&ws.readyState===1)ws.send(JSON.stringify(x));}
+function render(){
+  $('lobbyPanel').classList.add('hidden');$('gamePanel').classList.remove('hidden');$('roomCode').textContent=state.roomCode;
+  const me=state.players.find(p=>p.isYou);
+  $('mySecret').innerHTML=me.secretNumber?`🔐 Your secret number: <strong style="font-size:32px;color:#a993ff">${me.secretNumber}</strong>`:'🔐 You have not picked a number yet.';
+  $('players').innerHTML=state.players.map(p=>`<div class="player ${p.isYou?'you':''} ${p.eliminated?'elim':''}"><div class="pname">${esc(p.name)} ${p.isYou?'(YOU)':''}</div><div class="tag">${p.eliminated?'💀 OUT':p.ready?'✅ NUMBER LOCKED':'⏳ PICKING'} ${p.id===state.currentTurnId&&!p.eliminated?' • 🎯 TURN':''}</div></div>`).join('');
+  $('turn').innerHTML=state.phase==='lobby'?`Waiting for players: <strong>${state.players.length}/8</strong>`:state.phase==='playing'?`🎯 Current turn: <strong>${esc(state.currentTurnName||'')}</strong>`:`🏁 Game finished`;
+  $('pickPanel').classList.toggle('hidden',state.phase!=='lobby'||!!me.secretNumber);
+  $('cancelPanel').classList.toggle('hidden',state.phase!=='playing');
+  const isMyTurn=state.phase==='playing'&&state.currentTurnId===me.id&&!me.eliminated;
+  const taken=new Set(state.players.filter(p=>p.ready).map(p=>p.secretNumber).filter(Boolean));
+  const build=(mode)=>Array.from({length:100},(_,i)=>{const n=i+1;const isMine=n===me.secretNumber;const isTaken=taken.has(n);const disabled=mode==='pick'?isTaken:(!isMyTurn||n===me.secretNumber||state.players.some(p=>p.eliminated&&p.secretNumber===n));return `<button class="num ${isTaken?'taken':''} ${isMine?'mine':''}" ${disabled?'disabled':''} data-n="${n}">${n}</button>`}).join('');
+  $('pickGrid').innerHTML=build('pick');$('cancelGrid').innerHTML=build('cancel');
+  $('pickGrid').querySelectorAll('.num:not([disabled])').forEach(b=>b.onclick=()=>send({type:'pick',number:Number(b.dataset.n)}));
+  $('cancelGrid').querySelectorAll('.num:not([disabled])').forEach(b=>b.onclick=()=>{if(confirm('Cancel number '+b.dataset.n+'?'))send({type:'cancel',number:Number(b.dataset.n)})});
+  $('log').innerHTML=state.log.map(x=>`<div>${esc(x)}</div>`).join('');$('log').scrollTop=$('log').scrollHeight;
+  const host=state.hostId===me.id;
+  $('hostArea').innerHTML=state.phase==='lobby'&&host?`<button id="start" ${state.players.length<2||state.players.some(p=>!p.ready)?'disabled':''}>START GAME</button>`:'';
+  if($('start'))$('start').onclick=()=>send({type:'start'});
+  if(state.phase==='finished'){$('finish').classList.remove('hidden');$('winner').textContent=state.winnerName+' = HIJDA 😈';$('resetArea').innerHTML=host?'<button id="reset">NEW ROUND</button>':'';if($('reset'))$('reset').onclick=()=>send({type:'reset'})}else $('finish').classList.add('hidden');
+}
+function esc(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+</script>
+</body></html>

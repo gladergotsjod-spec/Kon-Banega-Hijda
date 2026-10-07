@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: kon-banega-hijda
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
