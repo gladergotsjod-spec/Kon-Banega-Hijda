@@ -83,15 +83,13 @@ function nextAliveIndex(room, fromIndex) {
 function startGame(room) {
   if (room.players.length < MIN_PLAYERS) return { ok: false, error: `Need at least ${MIN_PLAYERS} players.` };
   if (room.players.some(p => p.number === null)) return { ok: false, error: 'Everyone must choose a number first.' };
-  const nums = room.players.map(p => p.number);
-  if (new Set(nums).size !== nums.length) return { ok: false, error: 'Numbers must be unique.' };
   room.phase = 'playing';
   room.turnIndex = Math.floor(Math.random() * room.players.length);
   room.winnerId = null;
   room.winnerName = null;
   room.cancelledNumbers.clear();
   room.log = [];
-  addLog(room, 'Game started. The first turn was chosen randomly.');
+  addLog(room, 'Game started. Duplicate secret numbers are allowed.');
   addLog(room, `${room.players[room.turnIndex].name} goes first.`);
   sendState(room);
   return { ok: true };
@@ -167,7 +165,7 @@ wss.on('connection', ws => {
       if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Number selection is closed.' });
       const n = Number(msg.number);
       if (!Number.isInteger(n) || n < 1 || n > 100) return send(ws, { type: 'error', error: 'Choose a whole number from 1 to 100.' });
-      if (room.players.some(p => p.number === n && p.id !== player.id)) return send(ws, { type: 'error', error: 'That number is already taken. Pick another.' });
+      // Duplicate secret numbers are intentionally allowed.
       player.number = n;
       sendState(room);
       return;
@@ -190,10 +188,11 @@ wss.on('connection', ws => {
 
       room.cancelledNumbers.add(n);
 
-      const target = room.players.find(p => !p.eliminated && p.number === n);
-      if (target) {
-        target.eliminated = true;
-        addLog(room, `${player.name} cancelled ${n}. ${target.name} is OUT!`);
+      const targets = room.players.filter(p => !p.eliminated && p.number === n);
+      if (targets.length) {
+        for (const target of targets) target.eliminated = true;
+        const names = targets.map(target => target.name).join(' & ');
+        addLog(room, `${player.name} cancelled ${n}. ${names} is/are OUT!`);
       } else {
         addLog(room, `${player.name} cancelled ${n}, but nobody had that number.`);
       }
