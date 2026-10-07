@@ -44,9 +44,9 @@ function publicState(room, forPlayerId) {
       ready: p.number !== null,
       eliminated: p.eliminated,
       isYou: p.id === forPlayerId,
-      // Secret number is ONLY sent to its owner.
       secretNumber: p.id === forPlayerId ? p.number : null
     })),
+    cancelledNumbers: [...room.cancelledNumbers],
     aliveCount: alive.length,
     winnerId: room.winnerId || null,
     winnerName: room.winnerName || null,
@@ -81,6 +81,7 @@ function startGame(room) {
   room.turnIndex = Math.floor(Math.random() * room.players.length);
   room.winnerId = null;
   room.winnerName = null;
+  room.cancelledNumbers.clear();
   room.log = [];
   addLog(room, 'Game started. The first turn was chosen randomly.');
   addLog(room, `${room.players[room.turnIndex].name} goes first.`);
@@ -99,6 +100,7 @@ function makeRoom(name) {
     winnerId: null,
     winnerName: null,
     log: [],
+    cancelledNumbers: new Set(),
     players: []
   };
   const p = { id, name, number: null, eliminated: false, ws: null };
@@ -176,6 +178,9 @@ wss.on('connection', ws => {
       const n = Number(msg.number);
       if (!Number.isInteger(n) || n < 1 || n > 100) return send(ws, { type: 'error', error: 'Choose a number from 1 to 100.' });
       if (n === player.number) return send(ws, { type: 'error', error: 'You cannot cancel your own number.' });
+      if (room.cancelledNumbers.has(n)) return send(ws, { type: 'error', error: 'That number has already been cancelled.' });
+
+      room.cancelledNumbers.add(n);
 
       const target = room.players.find(p => !p.eliminated && p.number === n);
       if (target) {
@@ -205,6 +210,7 @@ wss.on('connection', ws => {
       if (player.id !== room.hostId) return send(ws, { type: 'error', error: 'Only the host can start a new round.' });
       for (const p of room.players) { p.number = null; p.eliminated = false; }
       room.phase = 'lobby'; room.turnIndex = 0; room.winnerId = null; room.winnerName = null; room.log = [];
+      room.cancelledNumbers.clear();
       addLog(room, 'New round created. Pick your secret numbers.');
       sendState(room);
       return;
@@ -214,8 +220,6 @@ wss.on('connection', ws => {
   ws.on('close', () => {
     if (!player || !room) return;
     player.ws = null;
-    // Keep the player in the room briefly so refresh/reconnect is not required for others.
-    // If the game is still in lobby, remove disconnected players immediately.
     if (room.phase === 'lobby') {
       const idx = room.players.findIndex(p => p.id === player.id);
       if (idx >= 0) room.players.splice(idx, 1);
