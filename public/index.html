@@ -28,7 +28,7 @@
         <h2>How to play</h2>
         <ol style="color:#c8cede;line-height:1.8">
           <li>Up to 8 players join the same room.</li>
-          <li>Everyone secretly chooses a unique number from <b>1–100</b>.</li>
+          <li>Everyone secretly chooses a number from <b>1–100</b>. Multiple players may choose the same number.</li>
           <li>The server randomly chooses the first turn.</li>
           <li>On your turn, cancel an opponent's number.</li>
           <li>If you hit someone's secret number, that player is <b>OUT</b>.</li>
@@ -79,9 +79,9 @@ function render(){
   $('pickPanel').classList.toggle('hidden',state.phase!=='lobby'||!!me.secretNumber);
   $('cancelPanel').classList.toggle('hidden',state.phase!=='playing');
   const isMyTurn=state.phase==='playing'&&state.currentTurnId===me.id&&!me.eliminated;
-  const taken=new Set(state.players.filter(p=>p.ready).map(p=>p.secretNumber).filter(Boolean));
+  const taken=new Set();
   const cancelled=new Set(state.cancelledNumbers||[]);
-  const build=(mode)=>Array.from({length:100},(_,i)=>{const n=i+1;const isMine=n===me.secretNumber;const isTaken=taken.has(n);const isCancelled=cancelled.has(n);const disabled=mode==='pick'?isTaken:(!isMyTurn||n===me.secretNumber||isCancelled);return `<button class="num ${isTaken?'taken':''} ${isMine?'mine':''} ${isCancelled?'cancelled':''}" ${disabled?'disabled':''} data-n="${n}">${n}</button>`}).join('');
+  const build=(mode)=>Array.from({length:100},(_,i)=>{const n=i+1;const isMine=n===me.secretNumber;const isTaken=taken.has(n);const isCancelled=cancelled.has(n);const disabled=mode==='pick'?false:(!isMyTurn||n===me.secretNumber||isCancelled);return `<button class="num ${isTaken?'taken':''} ${isMine?'mine':''} ${isCancelled?'cancelled':''}" ${disabled?'disabled':''} data-n="${n}">${n}</button>`}).join('');
   $('pickGrid').innerHTML=build('pick');$('cancelGrid').innerHTML=build('cancel');
   $('pickGrid').querySelectorAll('.num:not([disabled])').forEach(b=>b.onclick=()=>send({type:'pick',number:Number(b.dataset.n)}));
   $('cancelGrid').querySelectorAll('.num:not([disabled])').forEach(b=>b.onclick=()=>{if(confirm('Cancel number '+b.dataset.n+'?'))send({type:'cancel',number:Number(b.dataset.n)})});
