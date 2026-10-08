@@ -109,7 +109,7 @@ function makeRoom(name) {
     cancelledNumbers: new Set(),
     players: []
   };
-  const p = { id, name, number: null, eliminated: false, ws: null };
+  const p = { id, name, number: null, eliminated: false, ws: null, disconnectedAt: null };
   room.players.push(p);
   rooms.set(code, room);
   return { room, player: p };
@@ -117,7 +117,7 @@ function makeRoom(name) {
 
 function joinRoom(room, name) {
   const id = playerId();
-  const p = { id, name, number: null, eliminated: false, ws: null };
+  const p = { id, name, number: null, eliminated: false, ws: null, disconnectedAt: null };
   room.players.push(p);
   return p;
 }
@@ -135,7 +135,7 @@ wss.on('connection', ws => {
       const name = String(msg.name || '').trim().slice(0, 20);
       if (!name) return send(ws, { type: 'error', error: 'Enter your name.' });
       const made = makeRoom(name);
-      room = made.room; player = made.player; player.ws = ws;
+      room = made.room; player = made.player; player.ws = ws; player.disconnectedAt = null;
       addLog(room, `${player.name} created the room.`);
       sendState(room);
       return;
@@ -151,7 +151,7 @@ wss.on('connection', ws => {
       if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'That game has already started.' });
       if (room.players.length >= MAX_PLAYERS) return send(ws, { type: 'error', error: 'Room is full.' });
       if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return send(ws, { type: 'error', error: 'That player name is already used in this room.' });
-      player = joinRoom(room, name); player.ws = ws;
+      player = joinRoom(room, name); player.ws = ws; player.disconnectedAt = null;
       addLog(room, `${player.name} joined the room.`);
       sendState(room);
       return;
@@ -228,18 +228,22 @@ wss.on('connection', ws => {
     if (!player || !room) return;
     player.ws = null;
     if (room.phase === 'lobby') {
-      const idx = room.players.findIndex(p => p.id === player.id);
-      if (idx >= 0) room.players.splice(idx, 1);
-      if (room.hostId === player.id && room.players[0]) room.hostId = room.players[0].id;
-      if (room.players.length) sendState(room);
-      else rooms.delete(room.code);
+      // Keep the room alive if the host temporarily backgrounds Safari/Chrome
+      // while sharing the room code. The player can disconnect briefly without
+      // destroying the room before friends have a chance to join.
+      player.disconnectedAt = Date.now();
+      sendState(room);
     }
   });
 });
 
 setInterval(() => {
+  const now = Date.now();
   for (const [code, room] of rooms) {
-    if (room.players.every(p => !p.ws)) rooms.delete(code);
+    // Remove abandoned rooms only after 30 minutes with no connected players.
+    if (room.players.length && room.players.every(p => !p.ws && p.disconnectedAt && now - p.disconnectedAt > 30 * 60_000)) {
+      rooms.delete(code);
+    }
   }
 }, 60_000);
 
