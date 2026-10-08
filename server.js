@@ -192,7 +192,11 @@ wss.on('connection', ws => {
       if (targets.length) {
         for (const target of targets) target.eliminated = true;
         const names = targets.map(target => target.name).join(' & ');
-        addLog(room, `${player.name} cancelled ${n}. ${names} is/are OUT!`);
+        addLog(room, `${player.name} cancelled ${n}. ${names} is/are SAFE! 🛡️`);
+        broadcast(room, {
+          type: 'safe',
+          playerNames: targets.map(target => target.name)
+        });
       } else {
         addLog(room, `${player.name} cancelled ${n}, but nobody had that number.`);
       }
