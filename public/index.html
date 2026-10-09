@@ -58,18 +58,57 @@
   </section>
 </div>
 <script>
-const $=id=>document.getElementById(id);let ws=null,state=null;
+const $=id=>document.getElementById(id);let ws=null,state=null;let kbhReconnectTimer=null;let kbhManualAction=null;
+function openSocket(action,payload){
+  if(ws&&ws.readyState===WebSocket.OPEN)return;
+  kbhManualAction=action||null;
+  const socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  ws=socket;
+  socket.onopen=()=>{
+    if(action==='reconnect')socket.send(JSON.stringify({type:'reconnect',...payload}));
+    else socket.send(JSON.stringify({type:action,name:payload.name,code:payload.code}));
+  };
+  socket.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.type==='session'){
+      try{sessionStorage.setItem('kbhSession',JSON.stringify({code:m.roomCode,playerId:m.playerId,token:m.token}));}catch{}
+    }else if(m.type==='error'){
+      showError(m.error);
+      if(m.error.includes('session has expired')){try{sessionStorage.removeItem('kbhSession')}catch{}}
+    }else if(m.type==='safe'){showSafePopup(m.playerNames||[]);}
+    else if(m.type==='state'){state=m;showError('');render();}
+  };
+  socket.onclose=()=>{
+    if(ws===socket)ws=null;
+    if(kbhManualAction==='create'||kbhManualAction==='join'||getSavedSession()){
+      showError('Reconnecting to your room…');
+      clearTimeout(kbhReconnectTimer);
+      kbhReconnectTimer=setTimeout(()=>tryReconnect(),1500);
+    }
+  };
+  socket.onerror=()=>showError('Connection interrupted. Reconnecting…');
+  clearInterval(window.kbhHeartbeat);
+  window.kbhHeartbeat=setInterval(()=>{if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'heartbeat'}));},20000);
+}
+function getSavedSession(){try{return JSON.parse(sessionStorage.getItem('kbhSession')||'null')}catch{return null}}
+function tryReconnect(){
+  const saved=getSavedSession();
+  if(!saved||document.visibilityState==='hidden')return;
+  if(ws&&ws.readyState===WebSocket.OPEN)return;
+  openSocket('reconnect',saved);
+}
 function connect(action){
   const name=$('name').value.trim(); if(!name)return showError('Enter your player name first.');
-  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
-  ws.onopen=()=>ws.send(JSON.stringify({type:action, name, code:$('code').value.trim().toUpperCase()}));
-  ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='error')showError(m.error);else if(m.type==='safe'){showSafePopup(m.playerNames||[]);}else if(m.type==='state'){state=m;showError('');render();}};
-  ws.onclose=()=>showError('Connection closed. Refresh the page to reconnect.');
-  ws.onerror=()=>showError('Could not connect to the game server.');
-  clearInterval(window.kbhHeartbeat);
-  window.kbhHeartbeat=setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'heartbeat'}));},20000);
+  try{sessionStorage.removeItem('kbhSession')}catch{}
+  clearTimeout(kbhReconnectTimer);
+  openSocket(action,{name,code:$('code').value.trim().toUpperCase()});
 }
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&getSavedSession()&&(!ws||ws.readyState!==WebSocket.OPEN))tryReconnect()});
+window.addEventListener('pageshow',()=>{if(getSavedSession()&&(!ws||ws.readyState!==WebSocket.OPEN))tryReconnect()});
+window.addEventListener('online',()=>{if(getSavedSession()&&(!ws||ws.readyState!==WebSocket.OPEN))tryReconnect()});
+
 function showError(t){$('error').textContent=t||'';$('error').style.color=t?'#ff7894':''}
+window.addEventListener('load',()=>{if(getSavedSession())tryReconnect()});
 $('create').onclick=()=>connect('create');$('join').onclick=()=>connect('join');$('code').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
 function send(x){if(ws&&ws.readyState===1)ws.send(JSON.stringify(x));}
 function render(){
