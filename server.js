@@ -109,7 +109,7 @@ function makeRoom(name) {
     cancelledNumbers: new Set(),
     players: []
   };
-  const p = { id, name, number: null, eliminated: false, ws: null, disconnectedAt: null };
+  const p = { id, token: crypto.randomBytes(24).toString('hex'), name, number: null, eliminated: false, ws: null, disconnectedAt: null };
   room.players.push(p);
   rooms.set(code, room);
   return { room, player: p };
@@ -117,7 +117,7 @@ function makeRoom(name) {
 
 function joinRoom(room, name) {
   const id = playerId();
-  const p = { id, name, number: null, eliminated: false, ws: null, disconnectedAt: null };
+  const p = { id, token: crypto.randomBytes(24).toString('hex'), name, number: null, eliminated: false, ws: null, disconnectedAt: null };
   room.players.push(p);
   return p;
 }
@@ -130,12 +130,31 @@ wss.on('connection', ws => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return send(ws, { type: 'error', error: 'Invalid message.' }); }
 
+    if (msg.type === 'reconnect') {
+      if (player) return;
+      const code = String(msg.code || '').trim().toUpperCase();
+      const id = String(msg.playerId || '');
+      const token = String(msg.token || '');
+      const foundRoom = rooms.get(code);
+      const foundPlayer = foundRoom && foundRoom.players.find(p => p.id === id && p.token === token);
+      if (!foundRoom || !foundPlayer) return send(ws, { type: 'error', error: 'Your previous room session has expired. Please create or join a room again.' });
+      room = foundRoom;
+      player = foundPlayer;
+      player.ws = ws;
+      player.disconnectedAt = null;
+      send(ws, { type: 'session', roomCode: room.code, playerId: player.id, token: player.token });
+      addLog(room, `${player.name} reconnected.`);
+      sendState(room);
+      return;
+    }
+
     if (msg.type === 'create') {
       if (player) return;
       const name = String(msg.name || '').trim().slice(0, 20);
       if (!name) return send(ws, { type: 'error', error: 'Enter your name.' });
       const made = makeRoom(name);
       room = made.room; player = made.player; player.ws = ws; player.disconnectedAt = null;
+      send(ws, { type: 'session', roomCode: room.code, playerId: player.id, token: player.token });
       addLog(room, `${player.name} created the room.`);
       sendState(room);
       return;
@@ -152,6 +171,7 @@ wss.on('connection', ws => {
       if (room.players.length >= MAX_PLAYERS) return send(ws, { type: 'error', error: 'Room is full.' });
       if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return send(ws, { type: 'error', error: 'That player name is already used in this room.' });
       player = joinRoom(room, name); player.ws = ws; player.disconnectedAt = null;
+      send(ws, { type: 'session', roomCode: room.code, playerId: player.id, token: player.token });
       addLog(room, `${player.name} joined the room.`);
       sendState(room);
       return;
@@ -230,8 +250,8 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     if (!player || !room) return;
-    player.ws = null;
-    if (room.phase === 'lobby') {
+    if (player.ws === ws) player.ws = null;
+    if (room.phase === 'lobby' && !player.ws) {
       // Keep the room alive if the host temporarily backgrounds Safari/Chrome
       // while sharing the room code. The player can disconnect briefly without
       // destroying the room before friends have a chance to join.
