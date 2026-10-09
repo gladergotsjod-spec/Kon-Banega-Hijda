@@ -181,6 +181,20 @@ wss.on('connection', ws => {
 
     if (msg.type === 'heartbeat') return;
 
+    if (msg.type === 'edit') {
+      if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Names and numbers can only be edited before the game starts.' });
+      const name = String(msg.name || '').trim().slice(0, 20);
+      const n = Number(msg.number);
+      if (!name) return send(ws, { type: 'error', error: 'Enter a player name.' });
+      if (!Number.isInteger(n) || n < 1 || n > 100) return send(ws, { type: 'error', error: 'Choose a whole number from 1 to 100.' });
+      if (room.players.some(p => p.id !== player.id && p.name.toLowerCase() === name.toLowerCase())) return send(ws, { type: 'error', error: 'That player name is already used in this room.' });
+      player.name = name;
+      player.number = n;
+      addLog(room, `${player.name} updated their name/number in the lobby.`);
+      sendState(room);
+      return;
+    }
+
     if (msg.type === 'pick') {
       if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Number selection is closed.' });
       const n = Number(msg.number);
