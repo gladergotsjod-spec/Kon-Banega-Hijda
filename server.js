@@ -181,6 +181,25 @@ wss.on('connection', ws => {
 
     if (msg.type === 'heartbeat') return;
 
+    if (msg.type === 'kick') {
+      if (player.id !== room.hostId) return send(ws, { type: 'error', error: 'Only the room creator can kick players.' });
+      if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Players can only be kicked before the game starts.' });
+      const targetId = String(msg.playerId || '');
+      if (!targetId || targetId === room.hostId) return send(ws, { type: 'error', error: 'You cannot kick yourself.' });
+      const targetIndex = room.players.findIndex(p => p.id === targetId);
+      if (targetIndex < 0) return send(ws, { type: 'error', error: 'Player not found in this room.' });
+      const target = room.players[targetIndex];
+      send(target.ws, { type: 'kicked', message: 'The room creator removed you from the room.' });
+      if (target.ws) {
+        target.ws.close(4001, 'Removed by room creator');
+      }
+      room.players.splice(targetIndex, 1);
+      if (room.turnIndex >= room.players.length) room.turnIndex = 0;
+      addLog(room, `${target.name} was removed from the room by the creator.`);
+      sendState(room);
+      return;
+    }
+
     if (msg.type === 'edit') {
       if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Names and numbers can only be edited before the game starts.' });
       const name = String(msg.name || '').trim().slice(0, 20);
