@@ -75,6 +75,13 @@ function openSocket(action,payload){
     }else if(m.type==='error'){
       showError(m.error);
       if(m.error.includes('session has expired')){try{sessionStorage.removeItem('kbhSession')}catch{}}
+    }else if(m.type==='kicked'){
+      try{sessionStorage.removeItem('kbhSession')}catch{}
+      state=null;
+      if(ws===socket)ws=null;
+      try{socket.close()}catch{}
+      $('gamePanel').classList.add('hidden');$('lobbyPanel').classList.remove('hidden');
+      showError(m.message||'You were removed from the room.');
     }else if(m.type==='safe'){showSafePopup(m.playerNames||[]);}
     else if(m.type==='state'){state=m;showError('');render();}
   };
@@ -115,7 +122,7 @@ function render(){
   $('lobbyPanel').classList.add('hidden');$('gamePanel').classList.remove('hidden');$('roomCode').textContent=state.roomCode;
   const me=state.players.find(p=>p.isYou);
   $('mySecret').innerHTML=me.secretNumber?`🔐 Your secret number: <strong style="font-size:32px;color:#a993ff">${me.secretNumber}</strong>`:'🔐 You have not picked a number yet.';
-  $('players').innerHTML=state.players.map(p=>`<div class="player ${p.isYou?'you':''} ${p.eliminated?'safe':''}"><div class="pname">${esc(p.name)} ${p.isYou?'(YOU)':''}</div><div class="tag">${p.eliminated?'🛡️ SAFE':p.ready?'✅ NUMBER LOCKED':'⏳ PICKING'} ${p.id===state.currentTurnId&&!p.eliminated?' • 🎯 TURN':''}</div>${state.phase==='lobby'&&p.isYou?'<div class="lobby-edit"><input id="editName" maxlength="20" aria-label="Edit player name" placeholder="Player name" value="'+esc(p.name)+'"><input id="editNumber" type="number" min="1" max="100" aria-label="Edit secret number" placeholder="Number 1–100" value="'+(p.secretNumber||'')+'"><button id="saveEdit" type="button">SAVE</button></div>':''}</div>`).join('');
+  $('players').innerHTML=state.players.map(p=>`<div class="player ${p.isYou?'you':''} ${p.eliminated?'safe':''}" data-player-id="${p.id}"><div class="pname">${esc(p.name)} ${p.isYou?'(YOU)':''}</div><div class="tag">${p.eliminated?'🛡️ SAFE':p.ready?'✅ NUMBER LOCKED':'⏳ PICKING'} ${p.id===state.currentTurnId&&!p.eliminated?' • 🎯 TURN':''}</div>${state.phase==='lobby'&&p.isYou?'<div class="lobby-edit"><input id="editName" maxlength="20" aria-label="Edit player name" placeholder="Player name" value="'+esc(p.name)+'"><input id="editNumber" type="number" min="1" max="100" aria-label="Edit secret number" placeholder="Number 1–100" value="'+(p.secretNumber||'')+'"><button id="saveEdit" type="button">SAVE</button></div>':''}</div>`).join('');
   $('turn').innerHTML=state.phase==='lobby'?`Waiting for players: <strong>${state.players.length}/8</strong>`:state.phase==='playing'?`🎯 Current turn: <strong>${esc(state.currentTurnName||'')}</strong>`:`🏁 Game finished`;
   $('pickPanel').classList.toggle('hidden',state.phase!=='lobby'||!!me.secretNumber);
   $('cancelPanel').classList.toggle('hidden',state.phase!=='playing');
@@ -126,6 +133,16 @@ function render(){
   $('pickGrid').innerHTML=build('pick');$('cancelGrid').innerHTML=build('cancel');
   $('pickGrid').querySelectorAll('.num:not([disabled])').forEach(b=>b.onclick=()=>send({type:'pick',number:Number(b.dataset.n)}));
   if($('saveEdit'))$('saveEdit').onclick=()=>send({type:'edit',name:$('editName').value,number:Number($('editNumber').value)});
+  if(state.phase==='lobby'&&state.hostId===me.id){
+    $('players').querySelectorAll('.player[data-player-id]').forEach(card=>{
+      const targetId=card.dataset.playerId;
+      if(targetId===me.id)return;
+      const kick=document.createElement('button');
+      kick.type='button';kick.className='danger';kick.textContent='KICK PLAYER';kick.style.marginTop='10px';
+      kick.onclick=()=>{const target=state.players.find(p=>p.id===targetId);if(target&&confirm('Kick '+target.name+' from this room?'))send({type:'kick',playerId:targetId})};
+      card.appendChild(kick);
+    });
+  }
   if(state.phase!=='lobby'&&me.eliminated){$('mySecret').innerHTML='<div class="spectator-note">🛡️ You are SAFE — you can spectate the rest of the game.</div><div class="small">Other players’ secret numbers stay hidden.</div>';}
 
   $('cancelGrid').querySelectorAll('.num:not([disabled])').forEach(b=>b.onclick=()=>{if(confirm('Cancel number '+b.dataset.n+'?'))send({type:'cancel',number:Number(b.dataset.n)})});
