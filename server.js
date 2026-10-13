@@ -270,6 +270,21 @@ wss.on('connection', ws => {
       return;
     }
 
+    if (msg.type === 'stop') {
+      if (player.id !== room.hostId) return send(ws, { type: 'error', error: 'Only the room creator can stop the game.' });
+      if (room.phase !== 'playing') return send(ws, { type: 'error', error: 'The game is not currently running.' });
+      for (const p of room.players) { p.number = null; p.eliminated = false; }
+      room.phase = 'lobby';
+      room.turnIndex = 0;
+      room.winnerId = null;
+      room.winnerName = null;
+      room.log = [];
+      room.cancelledNumbers.clear();
+      addLog(room, 'The host stopped the game. Everyone has returned to the lobby.');
+      sendState(room);
+      return;
+    }
+
     if (msg.type === 'reset') {
       if (player.id !== room.hostId) return send(ws, { type: 'error', error: 'Only the host can start a new round.' });
       for (const p of room.players) { p.number = null; p.eliminated = false; }
