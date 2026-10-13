@@ -43,6 +43,7 @@ function publicState(room, forPlayerId) {
     type: 'state',
     roomCode: room.code,
     phase: room.phase,
+    maxNumber: room.maxNumber,
     hostId: room.hostId,
     currentTurnId: current ? current.id : null,
     currentTurnName: current ? current.name : null,
@@ -82,7 +83,7 @@ function nextAliveIndex(room, fromIndex) {
 
 function startGame(room) {
   if (room.players.length < MIN_PLAYERS) return { ok: false, error: `Need at least ${MIN_PLAYERS} players.` };
-  if (room.players.some(p => p.number === null)) return { ok: false, error: 'Everyone must choose a number first.' };
+  if (room.players.some(p => p.number === null || p.number < 1 || p.number > room.maxNumber)) return { ok: false, error: `Everyone must choose a number from 1 to ${room.maxNumber} first.` };
   room.phase = 'playing';
   room.turnIndex = Math.floor(Math.random() * room.players.length);
   room.winnerId = null;
@@ -102,6 +103,7 @@ function makeRoom(name) {
     code,
     hostId: id,
     phase: 'lobby',
+    maxNumber: 100,
     turnIndex: 0,
     winnerId: null,
     winnerName: null,
@@ -200,12 +202,26 @@ wss.on('connection', ws => {
       return;
     }
 
+    if (msg.type === 'configure') {
+      if (player.id !== room.hostId) return send(ws, { type: 'error', error: 'Only the room creator can change the number range.' });
+      if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'The number range can only be changed in the lobby.' });
+      const max = Number(msg.maxNumber);
+      if (!Number.isInteger(max) || max < 10 || max > 100 || max % 10 !== 0) return send(ws, { type: 'error', error: 'Choose a range from 1–10 to 1–100 in steps of 10.' });
+      if (max !== room.maxNumber) {
+        room.maxNumber = max;
+        for (const p of room.players) { p.number = null; p.eliminated = false; }
+        addLog(room, `The host changed the number range to 1–${max}. Everyone must pick again.`);
+        sendState(room);
+      }
+      return;
+    }
+
     if (msg.type === 'edit') {
       if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Names and numbers can only be edited before the game starts.' });
       const name = String(msg.name || '').trim().slice(0, 20);
       const n = Number(msg.number);
       if (!name) return send(ws, { type: 'error', error: 'Enter a player name.' });
-      if (!Number.isInteger(n) || n < 1 || n > 100) return send(ws, { type: 'error', error: 'Choose a whole number from 1 to 100.' });
+      if (!Number.isInteger(n) || n < 1 || n > room.maxNumber) return send(ws, { type: 'error', error: `Choose a whole number from 1 to ${room.maxNumber}.` });
       if (room.players.some(p => p.id !== player.id && p.name.toLowerCase() === name.toLowerCase())) return send(ws, { type: 'error', error: 'That player name is already used in this room.' });
       player.name = name;
       player.number = n;
@@ -217,7 +233,7 @@ wss.on('connection', ws => {
     if (msg.type === 'pick') {
       if (room.phase !== 'lobby') return send(ws, { type: 'error', error: 'Number selection is closed.' });
       const n = Number(msg.number);
-      if (!Number.isInteger(n) || n < 1 || n > 100) return send(ws, { type: 'error', error: 'Choose a whole number from 1 to 100.' });
+      if (!Number.isInteger(n) || n < 1 || n > room.maxNumber) return send(ws, { type: 'error', error: `Choose a whole number from 1 to ${room.maxNumber}.` });
       // Duplicate secret numbers are intentionally allowed.
       player.number = n;
       sendState(room);
@@ -235,7 +251,7 @@ wss.on('connection', ws => {
       if (room.phase !== 'playing') return send(ws, { type: 'error', error: 'The game is not in progress.' });
       if (room.players[room.turnIndex]?.id !== player.id) return send(ws, { type: 'error', error: 'It is not your turn.' });
       const n = Number(msg.number);
-      if (!Number.isInteger(n) || n < 1 || n > 100) return send(ws, { type: 'error', error: 'Choose a number from 1 to 100.' });
+      if (!Number.isInteger(n) || n < 1 || n > room.maxNumber) return send(ws, { type: 'error', error: `Choose a number from 1 to ${room.maxNumber}.` });
       if (n === player.number) return send(ws, { type: 'error', error: 'You cannot cancel your own number.' });
       if (room.cancelledNumbers.has(n)) return send(ws, { type: 'error', error: 'That number has already been cancelled.' });
 
@@ -260,6 +276,22 @@ wss.on('connection', ws => {
         room.winnerId = alive[0].id;
         room.winnerName = alive[0].name;
         addLog(room, `🏆 ${alive[0].name} is the last player left — HIJDA!`);
+        sendState(room);
+        return;
+      }
+
+      // Avoid a deadlock when no surviving player can legally cancel any remaining number.
+      const canAnyoneCancel = alive.some(p => {
+        for (let candidate = 1; candidate <= room.maxNumber; candidate++) {
+          if (candidate !== p.number && !room.cancelledNumbers.has(candidate)) return true;
+        }
+        return false;
+      });
+      if (!canAnyoneCancel) {
+        room.phase = 'finished';
+        room.winnerId = null;
+        room.winnerName = alive.map(p => p.name).join(' & ');
+        addLog(room, `😈 No legal cancellations remain. ${alive.map(p => p.name).join(' & ')} are all HIJDA!`);
         sendState(room);
         return;
       }
