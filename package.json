@@ -1,8 +1,8 @@
 {
-  "name": "kon-banega-hijda",
+  "name": "the-last-donkey",
   "version": "1.0.0",
   "private": true,
-  "description": "LAN/Internet multiplayer number elimination game - Kon Banega Hijda",
+  "description": "LAN/Internet multiplayer number elimination game - The Last Donkey",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
