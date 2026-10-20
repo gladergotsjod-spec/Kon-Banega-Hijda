@@ -1,4 +1,4 @@
-# THE LAST DONKEY — Online Version
+# KON BANEGA HIJDA — Online Version
 
 This version is designed to run on a public Node.js Web Service such as Render. The iPhone is a host/admin client; the server itself runs online.
 
